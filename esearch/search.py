@@ -293,7 +293,7 @@ def create_regex(config, pattern):
     if pattern == "*":
         pattern = ".*"
     else:
-        pattern = re.sub("\+\+", "\+\+", pattern)
+        pattern = pattern.replace("++", r"\+\+")
 
     try:
         regex = re.compile(pattern, re.IGNORECASE)
