@@ -327,38 +327,6 @@ def searchdb(config, patterns, db=None):
     return output_results(config, regexlist, found)
 
 
-# turns out this is slower :(
-def search1(config, regexlist, db=None):
-    """Test search method that performs
-    multiple reg expr. checks for each pkg
-    """
-    data = {}
-
-    #for regex, pattern, _, _, fullname in regexlist:
-    for p in range(len(regexlist)):
-        data[regexlist[p][1]] = []
-
-    for pkg in db:
-        for regex, pattern, _, _, fullname in regexlist:
-            found = False
-
-            if config['instonly'] and not pkg[4]:
-                continue
-            elif config['notinst'] and pkg[4]:
-                continue
-
-            if  fullname and regex.search(pkg[1]):
-                found = True
-            elif regex.search(pkg[0]):
-                found = True
-            elif config['searchdesc'] and regex.search(pkg[7]):
-                found = True
-
-            if found:
-                data[pattern].append(pkg)
-    return data
-
-
 def search_list(config, regexlist, db=None):
     """An optimized regular expression list db search"""
     data = {}
