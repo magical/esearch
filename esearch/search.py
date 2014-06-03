@@ -334,12 +334,12 @@ def search1(config, regexlist, db=None):
     """
     data = {}
 
-    #for regex, pattern, foo, foo, fullname in regexlist:
+    #for regex, pattern, _, _, fullname in regexlist:
     for p in range(len(regexlist)):
         data[regexlist[p][1]] = []
 
     for pkg in db:
-        for regex, pattern, foo, foo, fullname in regexlist:
+        for regex, pattern, _, _, fullname in regexlist:
             found = False
 
             if config['instonly'] and not pkg[4]:
@@ -363,7 +363,7 @@ def search_list(config, regexlist, db=None):
     """An optimized regular expression list db search"""
     data = {}
 
-    for regex, pattern, foo, foo, fullname in regexlist:
+    for regex, pattern, _, _, fullname in regexlist:
         data[pattern] = search(config, regex, fullname, db)
     return data
 
@@ -407,7 +407,7 @@ def filter_excluded(config, found):
     """Filters the list of found packages with the --exclude pattern"""
 
     for pattern in config['exclude']:
-        foo, regex, fullname = create_regex(config, pattern)
+        _, regex, fullname = create_regex(config, pattern)
 
         for key in found.keys():
             found[key] = list(filter((lambda pkg: not is_excluded(config, regex, fullname, pkg)), found[key]))
@@ -420,7 +420,7 @@ def output_results(config, regexlist, found):
     data['ebuilds'] = []
     data['defebuild'] = (0, 0)
     i = 0
-    for regex, pattern, foo, foo, fullname in regexlist:
+    for regex, pattern, _, _, fullname in regexlist:
         count = 0
         data['output'] = []
         for pkg in found[pattern]:
@@ -457,7 +457,7 @@ def output_results(config, regexlist, found):
         regexlist[i][3] = count
         i += 1
 
-    for regex, pattern, output, count, foo in regexlist:
+    for regex, pattern, output, count, _ in regexlist:
         if config['outputm'] in (NORMAL, VERBOSE):
             print("[ Results for search key :", bold(pattern), "]")
             print("[ Applications found :", bold(str(count)), "]\n")
