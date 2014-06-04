@@ -85,7 +85,7 @@ def mypkgcmp(pkg1, pkg2):
     return pkgcmp(pkg1[:3], pkg2[:3])
 
 
-def searchEbuilds(path, portdir=True, searchdef="", repo_num="",
+def search_ebuilds(path, portdir=True, searchdef="", repo_num="",
         config=None, data=None):
     pv = ""
     pkgs = []
@@ -119,16 +119,14 @@ def searchEbuilds(path, portdir=True, searchdef="", repo_num="",
             nr += 1
 
 
-def parseopts(opts, config=None):
-
+def parseopts(opts, args, config=None):
     if config is None:
-        config = CONFIG
+        config = CONFIG.copy()
 
-    if len(opts[1]) == 0:
+    if len(args) == 0:
         usage()
 
-    for a in opts[0]:
-        arg = a[0]
+    for arg, value in opts:
         if arg in ("-h", "--help"):
             usage()
         if arg in ("-S", "--searchdesc"):
@@ -148,12 +146,12 @@ def parseopts(opts, config=None):
             config['overlay'] = settings["PORTDIR_OVERLAY"]
             config['outputm'] = EBUILDS
         elif arg in ("-x", "--exclude"):
-            config['exclude'].append(a[1])
+            config['exclude'].append(value)
         elif arg in ("-o", "--own"):
             config['outputm'] = OWN
-            config['outputf'] = a[1]
+            config['outputf'] = value
         elif arg in ("-d", "--directory"):
-            config['esearchdbdir'] = a[1]
+            config['esearchdbdir'] = value
             if not exists(config['esearchdbdir']):
                 error("directory '" + darkgreen(config['esearchdbdir']) +
                     "' does not exist.", stderr=config['stderr'])
@@ -247,7 +245,7 @@ def do_normal(pkg, verbose):
              darkgreen("Homepage:"), pkg[6],
              darkgreen("Description:"), pkg[7],
              darkgreen("License:"), pkg[8]))
-    return data, False
+    return data
 
 
 def do_own(pkg, own):
@@ -315,7 +313,7 @@ def create_regexlist(config, patterns):
     return regexlist
 
 
-def searchdb(config, patterns, db=None):
+def searchdb(config, patterns, db):
     """Gutted out old search method.
     Now just calls the broken up functions.
     For api compatibility.
@@ -327,14 +325,14 @@ def searchdb(config, patterns, db=None):
     return output_results(config, regexlist, found)
 
 
-def search_list(config, regexlist, db=None):
+def search_list(config, regexlist, db):
     """An optimized regular expression list db search"""
-    data = {}
 
     for regex, pattern, _, _, fullname in regexlist:
-        data[pattern] = search(config, regex, fullname, db)
-    return data
-
+        results = []
+        for pkg in db:
+            db = search(config, regex, fullname, db)
+    return db
 
 def search(config, regex, fullname, db):
     """An optimized single regular expression db search"""
@@ -377,8 +375,11 @@ def filter_excluded(config, found):
     for pattern in config['exclude']:
         _, regex, fullname = create_regex(config, pattern)
 
-        for key in found.keys():
-            found[key] = list(filter((lambda pkg: not is_excluded(config, regex, fullname, pkg)), found[key]))
+        data = []
+        for pkg in found:
+            if not is_excluded(config, regex, fullname, pkg):
+                data.append(pkg)
+        found = data
 
     return found
 
@@ -387,55 +388,47 @@ def output_results(config, regexlist, found):
     data = {}
     data['ebuilds'] = []
     data['defebuild'] = (0, 0)
-    i = 0
-    for regex, pattern, _, _, fullname in regexlist:
-        count = 0
-        data['output'] = []
-        for pkg in found[pattern]:
-            if config['outputm'] in (NORMAL, VERBOSE):
-                newdata, _continue = do_normal(pkg,
-                    config['outputm'] == VERBOSE)
-                data['output'] += newdata
-                if _continue:
-                    continue
-            elif config['outputm'] in (COMPACT, EBUILDS):
-                data['output'].append(do_compact(pkg))
+    data['output'] = []
 
-            elif config['outputm'] == OWN:
-                data['output'].append(do_own(pkg, config['outputf']))
-
-            if config['outputm'] == EBUILDS:
-                if count == 0:
-                    searchdef = pkg[0] + "-" + pkg[3]
-                else:
-                    searchdef = ""
-
-                searchEbuilds("%s/%s/" % (config['portdir'], pkg[1]),
-                    True, searchdef, "", config, data)
-                if config['overlay']:
-                    repo_num=1
-                    for repo in config['overlay'].split():
-                        searchEbuilds("%s/%s/" % ( repo, pkg[1]),
-                            False, searchdef,repo_num, config, data)
-                        repo_num += 1
-
-            count += 1
-
-        regexlist[i][2] = "\n".join(data['output'])
-        regexlist[i][3] = count
-        i += 1
-
-    for regex, pattern, output, count, _ in regexlist:
+    count = 0
+    for pkg in found:
         if config['outputm'] in (NORMAL, VERBOSE):
-            print("[ Results for search key :", bold(pattern), "]")
-            print("[ Applications found :", bold(str(count)), "]\n")
-            try:
-                print(output, end=' ')
-                print("")
-            except IOError:
-                pass
-        else:
-            print(output)
+            data['output'] += do_normal(pkg, config['outputm'] == VERBOSE)
+        elif config['outputm'] in (COMPACT, EBUILDS):
+            data['output'].append(do_compact(pkg))
+        elif config['outputm'] == OWN:
+            data['output'].append(do_own(pkg, config['outputf']))
+
+        if config['outputm'] == EBUILDS:
+            if count == 0:
+                searchdef = pkg[0] + "-" + pkg[3]
+            else:
+                searchdef = ""
+
+            search_ebuilds("%s/%s/" % (config['portdir'], pkg[1]),
+                True, searchdef, "", config, data)
+            if config['overlay']:
+                repo_num=1
+                for repo in config['overlay'].split():
+                    search_ebuilds("%s/%s/" % ( repo, pkg[1]),
+                        False, searchdef,repo_num, config, data)
+                    repo_num += 1
+
+        count += 1
+
+    data['count'] = len(found)
+    data['output'] = '\n'.join(data['output'])
+
+    if config['outputm'] in (NORMAL, VERBOSE):
+        #print("[ Results for search key :", bold(pattern), "]")
+        print("[ Applications found :", bold(str(count)), "]\n")
+        try:
+            print(data['output'], end=' ')
+            print("")
+        except IOError:
+            pass
+    else:
+        print(data['output'])
 
 
 
@@ -483,20 +476,20 @@ def output_results(config, regexlist, found):
 
 def main():
     try:
-        opts = getopt(sys.argv[1:], "hSFINcveo:d:x:n",
+        opts, args = getopt(sys.argv[1:], "hSFINcveo:d:x:n",
             ["help", "searchdesc", "fullname", "instonly", "notinst", "compact",
              "verbose", "ebuild", "own=", "directory=", "exclude=", "nocolor"
             ])
     except GetoptError as errmsg:
         error(str(errmsg) + "(see " + darkgreen("--help") +
             " for all options)" + '\n')
-    config = parseopts(opts)
+    config = parseopts(opts, args)
     db = loaddb(config)
-    regexlist = create_regexlist(config, opts[1])
+    regexlist = create_regexlist(config, args)
     found = search_list(config, regexlist, db)
     if config['exclude']:
         found = filter_excluded(config, found)
-    success = output_results(config, regexlist, found)
+    success = output_results(config, [], found)
 
     # sys.exit() values are opposite T/F
     sys.exit(not success)
